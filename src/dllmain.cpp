@@ -1,5 +1,8 @@
 ﻿#include "dllmain.hpp"
 
+#include <stdlib.h> /* srand, rand */
+#include <time.h>
+
 #include <memory>
 #include <minecraft/src-deps/core/utility/NonOwnerPointer.hpp>
 #include <minecraft/src-vanilla/vanilla_shared/common/world/level/dimension/OverworldDimension.hpp>
@@ -23,6 +26,8 @@
 #include <minecraft/src/common/world/level/levelgen/structure/StructureFeatureRegistry.hpp>
 #include <minecraft/src/common/world/phys/Vec2.hpp>
 
+#include "SimplexNoise.h"
+
 AmethystContext* amethyst;
 
 class ILevel;
@@ -38,15 +43,48 @@ class TestGenerator : public WorldGenerator {
    public:
     TestGenerator(Dimension& dimension) : WorldGenerator(dimension, std::make_unique<StructureFeatureRegistry>()) {
         Log::Info("TestGenerator");
+
+        srand(time(NULL));
     }
 
     /**@vIndex {11} */
     virtual void loadChunk(LevelChunk& lc, bool forceImmediateReplacementDataLoad) {
         // generateChunkMutex.lock();
 
-        Log::Info("[loadChunk] mPosition: {}, loadState: {}, min: {}, max: {}", lc.mPosition, (int)lc.mLoadState, lc.mMin, lc.mMax);
+        Log::Info("[loadChunk] chunkPointer: {:x} mPosition: {}, loadState: {}, min: {}, max: {}", (uint64_t)&lc, lc.mPosition, (int)lc.mLoadState, lc.mMin, lc.mMax);
 
-        BlockVolume blockVolume = BlockVolume(16, 320, 16, BlockTypeRegistry::getDefaultBlockState(HashedString("diamond_block")));
+        LevelChunk* lcPtr = &lc;
+        BlockPos* blockPosPtr = reinterpret_cast<BlockPos*>(reinterpret_cast<char*>(lcPtr) + 0x60);
+        BlockPos minPos = *blockPosPtr;
+
+        auto air = BlockTypeRegistry::getDefaultBlockState(HashedString("air"));
+        auto dirt = BlockTypeRegistry::getDefaultBlockState(HashedString("dirt"));
+        auto grass = BlockTypeRegistry::getDefaultBlockState(HashedString("grass"));
+
+        BlockVolume blockVolume = BlockVolume(16, 320, 16, air);
+
+        float noiseScale = 0.01f;
+
+        for (int x = 0; x < blockVolume.mWidth; x++) {
+            for (int y = 0; y < blockVolume.mHeight; y++) {
+                for (int z = 0; z < blockVolume.mDepth; z++) {
+                    int worldX = x + minPos.x;
+                    int worldY = y + minPos.y;
+                    int worldZ = z + minPos.z;
+
+                    float noise = SimplexNoise::noise((float)worldX * noiseScale, (float)worldY * noiseScale, (float)worldZ * noiseScale);
+                    float bottomNoise = SimplexNoise::noise((float)worldX * noiseScale, (float)(worldY - 1) * noiseScale, (float)worldZ * noiseScale);
+
+                    // if (y == 0) Log::Info("Noise ${} ${} ${} -> ${}", x, y, z, noise);
+
+                    if (noise > 0.5f) {
+                        blockVolume.set(dirt, x, y, z);
+
+                        if (bottomNoise > 0.5f) blockVolume.set(grass, x, y, z);
+                    }
+                }
+            }
+        }
 
         // Log::Warning("Created BlockVolume! 0x{:x}", (uint64_t)&blockVolume);
         // Log::Warning("BlockVolume blocks vector: 0x{:x} - 0x{:x}", (uint64_t)blockVolume._blocksHolder.data(), (uint64_t)blockVolume._blocksHolder.data()[blockVolume._blocksHolder.size()]);
@@ -207,66 +245,11 @@ WeakRef<Dimension>* getOrCreateDimension(DimensionManager* self, WeakRef<Dimensi
     return result;
 }
 
-class SubChunk;
-
-// SafetyHookInline _setFromBlockVolume;
-
-// void setFromBlockVolume(SubChunk* _this, BlockVolume* blockVolume, short param2) {
-//     Log::Info("setFromBlockVolume _this: 0x{:x} blockVolume: {:x} param2: {}", (uint64_t)_this, (uint64_t)blockVolume, param2);
-
-//     _setFromBlockVolume.call(_this, blockVolume, param2);
-// }
-
-// SafetyHookInline _copyMemorySpan;
-
-// void copyMemorySpan(void** dstSpan, unsigned long long count, void** srcSpan, long long* srcSpanEnd) {
-//     Log::Info("copyMemorySpan dstSpan: 0x{:x} count: {} srcSpan: 0x{:x} srcSpanEnd: 0x{:x}", (uint64_t)dstSpan, (uint64_t)count, (uint64_t)srcSpan, (uint64_t)srcSpanEnd);
-
-//     size_t size = *srcSpanEnd - (long long)*srcSpan;
-
-//     Log::Info("Size: {}", size);
-
-//     _copyMemorySpan.call(dstSpan, count, srcSpan, srcSpanEnd);
-
-//     Log::Info("Success with size: {}", size);
-// }
-
-SafetyHookInline _findHighestNonAirBlock;
-
-short findHighestNonAirBlock(BlockVolume* _this) {
-    Log::Warning("findHighestNonAirBlock _this: 0x{:x}", (uint64_t)_this);
-
-    short result = _findHighestNonAirBlock.call<short>(_this);
-
-    Log::Info("Result: {}", result);
-
-    // for (int i = 0; i < _this->mWidth * _this->mHeight * _this->mDepth; i++) {
-    //     auto location = _this->mBlocks.mBegin + i;
-
-    //     Log::Info("Block Location ${}: 0x{:x}", i, (uint64_t)location);
-
-    //     auto block = _this->mBlocks.mBegin[i];
-
-    //     Log::Info("Block ${}: 0x{:x}", i, (uint64_t)block);
-    // }
-
-    return result;
-}
-
 ModFunction void Initialize(AmethystContext* _amethyst) {
     InitializeVtablePtrs();
     amethyst = _amethyst;
 
     HookManager& hooks = amethyst->mHookManager;
-
-    hooks.RegisterFunction<&findHighestNonAirBlock>("? 89 ? ? ? ? 89 ? ? ? ? 89 ? ? ? 41 ? 48 83 ? ? 48 ? ? 4C 8B ? 48 ? ? ? 33");
-    hooks.CreateHook<&findHighestNonAirBlock>(_findHighestNonAirBlock, &findHighestNonAirBlock);
-
-    // hooks.RegisterFunction<&copyMemorySpan>("48 85 ? 0F ? ? ? ? ? 56 41 ? 41 ? 48 83 ? ? 48 B8 ? ? ? ? ? ? ? ? 4D 8B ? 4D 8B ? 48 8B ? 48 3B ? 77 ? ? 89 ? ? ? 48 ? ? ? ? ? ? ? 48 8B ? ? 89 ? ? ? E8 ? ? ? ? ? 89 ? 48 8B ? ? 89 ? ? 48 ? ? ? ? 89 ? ? 48 8B ? 49 ? ? 49 ? ? 48 2B ? 4C 8B ? E8 ? ? ? ? 48 C1 ? ? 48 ? ? ? 48 ? ? ? ? 48 ? ? ? ? ? 89 ? ? 48 83 ? ? 41 ? 41 ? 5E ? E8 ? ? ?");
-    // hooks.CreateHook<&copyMemorySpan>(_copyMemorySpan, &copyMemorySpan);
-
-    // hooks.RegisterFunction<&setFromBlockVolume>("? 89 ? ? ? 55 56 57 48 8B ? 48 83 ? ? 48 8B ? ? ? ? ? 48 33 ? ? 89 ? ? 41 0F ? ? 48 8B ? 0F 57");
-    // hooks.CreateHook<&setFromBlockVolume>(_setFromBlockVolume, &setFromBlockVolume);
 
     hooks.CreateHookAbsolute(_registerDimensionTypes, SlideAddress(0x40818E0), &registerDimensionTypes);
     hooks.CreateHookAbsolute(__loadNewPlayer, SlideAddress(0x174AFE0), &_loadNewPlayer);
