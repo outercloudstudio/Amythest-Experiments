@@ -22,6 +22,7 @@
 #include <minecraft/src/common/world/level/levelgen/WorldGenerator.hpp>
 #include <minecraft/src/common/world/level/levelgen/structure/StructureFeatureRegistry.hpp>
 #include <minecraft/src/common/world/phys/Vec2.hpp>
+#include <vector>
 
 #include "SimplexNoise.h"
 
@@ -39,18 +40,18 @@ static std::mutex generateChunkMutex;
 class TestGenerator : public WorldGenerator {
    public:
     TestGenerator(Dimension& dimension) : WorldGenerator(dimension, std::make_unique<StructureFeatureRegistry>()) {
-        Log::Info("TestGenerator");
+        // Log::Info("TestGenerator");
     }
 
     /**@vIndex {11} */
     virtual void loadChunk(LevelChunk& lc, bool forceImmediateReplacementDataLoad) {
-        // generateChunkMutex.lock();
-
         auto air = BlockTypeRegistry::getDefaultBlockState(HashedString("air"));
         auto dirt = BlockTypeRegistry::getDefaultBlockState(HashedString("dirt"));
         auto grass = BlockTypeRegistry::getDefaultBlockState(HashedString("grass"));
 
-        BlockVolume blockVolume = BlockVolume(16, 320, 16, air);
+        std::vector<const Block*> blockSpan = std::vector<const Block*>(16 * 320 * 16);
+
+        BlockVolume blockVolume = BlockVolume(buffer_span_mut<const Block*>(&*blockSpan.begin(), &*blockSpan.end()), 16, 320, 16, air);
 
         float noiseScale = 0.01f;
 
@@ -77,7 +78,7 @@ class TestGenerator : public WorldGenerator {
                     int worldY = y + lc.mMin.y;
                     int worldZ = z + lc.mMin.z;
 
-                    if (blockVolume.getBlock(x, y, z) == dirt && (y == blockVolume.mHeight - 1 || blockVolume.getBlock(x, y + 1, z) != air)) {
+                    if (blockVolume.getBlock(x, y, z) == dirt && (y == blockVolume.mHeight - 1 || blockVolume.getBlock(x, y + 1, z) == air)) {
                         blockVolume.setBlock(grass, x, y, z);
                     }
                 }
@@ -157,11 +158,17 @@ struct LambdaFields {
     CompoundTag** compound;
 };
 
+static ServerPlayer* serverPlayer;
+static ILevel* globalLevel;
+
 void _loadNewPlayer(LambdaFields* a1) {
     ILevel& level = *a1->serverNetworkHandler->mLevel;
     CompoundTag* actorData = *a1->compound;
     ServerPlayer* player = a1->player;
     DefaultDataLoadHelper dataLoadHelper = DefaultDataLoadHelper();
+
+    serverPlayer = player;
+    globalLevel = &level;
 
     if (actorData) {
         player->mInitMethod = ActorInitializationMethod::LOADED;
@@ -172,7 +179,7 @@ void _loadNewPlayer(LambdaFields* a1) {
 
     // Try and load the dimension from NBT
     if (!player->hasDimension()) {
-        DimensionType dimId = DimensionType(3);  // VanillaDimensions::Undefined
+        DimensionType dimId = DimensionType(0);  // VanillaDimensions::Undefined
 
         // load from compoundTag
         if (actorData && actorData->contains("DimensionId")) {
@@ -208,24 +215,47 @@ void _loadNewPlayer(LambdaFields* a1) {
 }
 
 void registerDimensionTypes(OwnerPtrFactory<Dimension, ILevel&, Scheduler&>* factory, void* a, void* b, void* c) {
-    //_registerDimensionTypes.call(factory, a, b, c);
+    _registerDimensionTypes.call(factory, a, b, c);
 
     // register a dimension with the overworld name because custom names don't seem to get created
     // I suspect they are registered on demand when loading into the dimension.
-    factory->registerFactory("overworld", makeTestDimension);
+    factory->registerFactory("azure", makeTestDimension);
 
-    Log::Info("registerDimensionTypes 0x{:x} 0x{:x} 0x{:x} 0x{:x}", (uintptr_t)factory, (uintptr_t)a, (uintptr_t)b, (uintptr_t)c);
+    // Log::Info("registerDimensionTypes 0x{:x} 0x{:x} 0x{:x} 0x{:x}", (uintptr_t)factory, (uintptr_t)a, (uintptr_t)b, (uintptr_t)c);
 }
 
 SafetyHookInline _getOrCreateDimension;
 
 WeakRef<Dimension>* getOrCreateDimension(DimensionManager* self, WeakRef<Dimension>* result, DimensionType dimType) {
-    Log::Info("getOrCreateDimension, creating dimType {:d}", dimType.runtimeID);
+    // Log::Info("getOrCreateDimension, creating dimType {:d}", dimType.runtimeID);
 
     result = _getOrCreateDimension.call<WeakRef<Dimension>*>(self, result, dimType);
 
-    Log::Info("getOrCreateDimension result: 0x{:x}", (uint64_t)result->get());
+    // Log::Info("getOrCreateDimension result: 0x{:x}", (uint64_t)result->get());
     return result;
+}
+
+static Amethyst::InputManager* globalInputManager;
+
+void onRegisterInputs(Amethyst::InputManager* inputManager) {
+    Log::Info("Register Input");
+
+    // https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+    inputManager->RegisterNewInput("azure_teleport", {0xC0 /* ` */}, true);
+}
+
+void onTeleportUse(FocusImpact _focus, IClientInstance _clientInstance) {
+    Log::Info("Teleport");
+
+    WeakRef<Dimension> azure = globalLevel->getOrCreateDimension(3);
+
+    serverPlayer->setDimension(azure);
+}
+
+void onStartJoinGame(ClientInstance* instance) {
+    Log::Info("Join Game");
+
+    globalInputManager->AddButtonDownHandler("azure_teleport", &onTeleportUse, true);
 }
 
 ModFunction void Initialize(AmethystContext* _amethyst) {
@@ -239,4 +269,9 @@ ModFunction void Initialize(AmethystContext* _amethyst) {
 
     hooks.RegisterFunction<&DimensionManager::getOrCreateDimension>("48 89 5C 24 ? 44 89 44 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 45 ? 48 8B FA 4C 8B F9");
     hooks.CreateHook<&DimensionManager::getOrCreateDimension>(_getOrCreateDimension, &getOrCreateDimension);
+
+    globalInputManager = &_amethyst->mInputManager;
+
+    _amethyst->mEventManager.registerInputs.AddListener(&onRegisterInputs);
+    _amethyst->mEventManager.onStartJoinGame.AddListener(&onStartJoinGame);
 }
