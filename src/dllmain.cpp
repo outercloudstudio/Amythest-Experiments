@@ -1,8 +1,5 @@
 ﻿#include "dllmain.hpp"
 
-#include <stdlib.h> /* srand, rand */
-#include <time.h>
-
 #include <memory>
 #include <minecraft/src-deps/core/utility/NonOwnerPointer.hpp>
 #include <minecraft/src-vanilla/vanilla_shared/common/world/level/dimension/OverworldDimension.hpp>
@@ -43,19 +40,11 @@ class TestGenerator : public WorldGenerator {
    public:
     TestGenerator(Dimension& dimension) : WorldGenerator(dimension, std::make_unique<StructureFeatureRegistry>()) {
         Log::Info("TestGenerator");
-
-        srand(time(NULL));
     }
 
     /**@vIndex {11} */
     virtual void loadChunk(LevelChunk& lc, bool forceImmediateReplacementDataLoad) {
         // generateChunkMutex.lock();
-
-        Log::Info("[loadChunk] chunkPointer: {:x} mPosition: {}, loadState: {}, min: {}, max: {}", (uint64_t)&lc, lc.mPosition, (int)lc.mLoadState, lc.mMin, lc.mMax);
-
-        LevelChunk* lcPtr = &lc;
-        BlockPos* blockPosPtr = reinterpret_cast<BlockPos*>(reinterpret_cast<char*>(lcPtr) + 0x60);
-        BlockPos minPos = *blockPosPtr;
 
         auto air = BlockTypeRegistry::getDefaultBlockState(HashedString("air"));
         auto dirt = BlockTypeRegistry::getDefaultBlockState(HashedString("dirt"));
@@ -68,38 +57,32 @@ class TestGenerator : public WorldGenerator {
         for (int x = 0; x < blockVolume.mWidth; x++) {
             for (int y = 0; y < blockVolume.mHeight; y++) {
                 for (int z = 0; z < blockVolume.mDepth; z++) {
-                    int worldX = x + minPos.x;
-                    int worldY = y + minPos.y;
-                    int worldZ = z + minPos.z;
+                    int worldX = x + lc.mMin.x;
+                    int worldY = y + lc.mMin.y;
+                    int worldZ = z + lc.mMin.z;
 
                     float noise = SimplexNoise::noise((float)worldX * noiseScale, (float)worldY * noiseScale, (float)worldZ * noiseScale);
-                    float bottomNoise = SimplexNoise::noise((float)worldX * noiseScale, (float)(worldY - 1) * noiseScale, (float)worldZ * noiseScale);
-
-                    // if (y == 0) Log::Info("Noise ${} ${} ${} -> ${}", x, y, z, noise);
 
                     if (noise > 0.5f) {
-                        blockVolume.set(dirt, x, y, z);
-
-                        if (bottomNoise > 0.5f) blockVolume.set(grass, x, y, z);
+                        blockVolume.setBlock(dirt, x, y, z);
                     }
                 }
             }
         }
 
-        // Log::Warning("Created BlockVolume! 0x{:x}", (uint64_t)&blockVolume);
-        // Log::Warning("BlockVolume blocks vector: 0x{:x} - 0x{:x}", (uint64_t)blockVolume._blocksHolder.data(), (uint64_t)blockVolume._blocksHolder.data()[blockVolume._blocksHolder.size()]);
+        for (int x = 0; x < blockVolume.mWidth; x++) {
+            for (int y = 0; y < blockVolume.mHeight; y++) {
+                for (int z = 0; z < blockVolume.mDepth; z++) {
+                    int worldX = x + lc.mMin.x;
+                    int worldY = y + lc.mMin.y;
+                    int worldZ = z + lc.mMin.z;
 
-        // for (int i = 0; i < blockVolume.mWidth * blockVolume.mHeight * blockVolume.mDepth; i++) {
-        //     auto location = blockVolume.mBlocks.mBegin + i;
-
-        //     Log::Info("Block Location ${}: 0x{:x}  0x{:x} - 0x{:x}   valid? {}", i, (uint64_t)location, (uint64_t)blockVolume.mBlocks.mBegin, (uint64_t)blockVolume.mBlocks.mEnd, (uint64_t)location >= (uint64_t)blockVolume.mBlocks.mBegin && (uint64_t)location <= (uint64_t)blockVolume.mBlocks.mEnd);
-
-        //     auto block = blockVolume.mBlocks.mBegin[i];
-
-        //     Log::Info("Block ${}: 0x{:x} 0x{:x}", i, (uint64_t)block, (uint64_t)location);
-        // }
-
-        // generateChunkMutex.unlock();
+                    if (blockVolume.getBlock(x, y, z) == dirt && (y == blockVolume.mHeight - 1 || blockVolume.getBlock(x, y + 1, z) != air)) {
+                        blockVolume.setBlock(grass, x, y, z);
+                    }
+                }
+            }
+        }
 
         lc.setBlockVolume(&blockVolume, 0);
 
