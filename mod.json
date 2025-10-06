@@ -1,11 +1,11 @@
 {
     "format_version": "1.1.0",
     "meta": {
-        "name": "Amethyst-Template",
+        "name": "Amethyst-Experiments",
         "version": "0.0.0",
-        "namespace": "amethyst_template",
-        "author": "FrederoxDev",
-        "uuid": "00000000-0000-0000-0000-000000000000",
+        "namespace": "outercloud",
+        "author": "Outer Cloud",
+        "uuid": "90999dc6-bfaa-4da5-842d-c7f41f45318c",
         "dependencies": [
             {
                 "dependency_uuid": "e56c3987-fd4a-4590-9923-a07fc4be7250",
