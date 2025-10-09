@@ -16,14 +16,11 @@ void OnStartJoinGame(OnStartJoinGameEvent& event);
 class OverworldGeneratorMultinoise {};
 class OverworldGenerator {};
 
-class BlockVolume;
-class BlockPos;
-
 class BuildParameters {
    public:
     void* biome;                          // +0x00
     void* random;                         // +0x08
-    BlockVolume* blockVolume;             // +0x10
+    void* blockVolume;                    // +0x10
     BlockPos* blockPos;                   // +0x18
     float noiseValue;                     // +0x20
     short seaLevel;                       // +0x24
@@ -36,7 +33,7 @@ class BuildParameters {
     BuildParameters(
         void* biome,
         void* random,
-        BlockVolume* blockVolume,
+        void* blockVolume,
         BlockPos* blockPos,
         float noiseValue,
         short seaLevel,
@@ -48,3 +45,11 @@ class BuildParameters {
         : biome(biome), random(random), blockVolume(blockVolume), blockPos(blockPos), noiseValue(noiseValue), seaLevel(seaLevel), surfaceNoise(surfaceNoise), waterLevelStrategy(waterLevelStrategy), surfaceHeight(surfaceHeight), heightmapWrapper(heightmapWrapper), cavesAndCliffsCompatible(cavesAndCliffsCompatible) {
     }
 };
+
+static_assert(offsetof(BuildParameters, biome) == 0x00);
+static_assert(offsetof(BuildParameters, random) == 0x08);
+static_assert(offsetof(BuildParameters, blockVolume) == 0x10);
+static_assert(offsetof(BuildParameters, blockPos) == 0x18);
+static_assert(offsetof(BuildParameters, noiseValue) == 0x20);
+static_assert(offsetof(BuildParameters, seaLevel) == 0x24);
+static_assert(offsetof(BuildParameters, surfaceNoise) == 0x28);
