@@ -14,6 +14,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 void OnStartJoinGame(OnStartJoinGameEvent& event);
 
 class OverworldGeneratorMultinoise {};
+// noise at 0x2e8, 0x298, and 0x2c0
 class OverworldGenerator {};
 
 class BuildParameters {
@@ -53,3 +54,15 @@ static_assert(offsetof(BuildParameters, blockPos) == 0x18);
 static_assert(offsetof(BuildParameters, noiseValue) == 0x20);
 static_assert(offsetof(BuildParameters, seaLevel) == 0x24);
 static_assert(offsetof(BuildParameters, surfaceNoise) == 0x28);
+
+class SimplexNoise {};
+
+class PerlinSimplexNoise {
+   public:
+    int octaves;                          // +0x00
+    std::byte padding[4];                 // +0x04
+    SimplexNoise* simplexNoise_start;     // +0x08
+    SimplexNoise* simplexNoise_end;       // +0x10
+    SimplexNoise* simplexNoise_capacity;  // +0x18
+    float normalization;                  // +0x20
+};
