@@ -51,11 +51,15 @@ void PerlinNoise_getRegion(void* self, float* outputBuffer, Vec3 startPos, int s
 SafetyHookInline _OverworldGeneratorMultinoise__generateDensityCellsForChunk;
 
 void OverworldGeneratorMultinoise__generateDensityCellsForChunk(void* self, float* output, void* worldgenCache, void* noodleCavifier, void* oreVeinifier) {
-    _OverworldGeneratorMultinoise__generateDensityCellsForChunk.fastcall<void>(self, output, worldgenCache, noodleCavifier, oreVeinifier);
+    // _OverworldGeneratorMultinoise__generateDensityCellsForChunk.fastcall<void>(self, output, worldgenCache, noodleCavifier, oreVeinifier);
 
-    Log::Info("Generating Density Cells {:x}", (uintptr_t)output);
+    // Log::Info("Generating Density Cells {:x}", (uintptr_t)output);
 
-    DebugBreak();
+    // for (int i = 0; i < 0x1004 / sizeof(float); i++) {
+    //     output[i] = 0.0f;
+    // }
+
+    // DebugBreak();
 }
 
 ModFunction void Initialize(AmethystContext& ctx, const Amethyst::Mod& mod) {
@@ -67,7 +71,7 @@ ModFunction void Initialize(AmethystContext& ctx, const Amethyst::Mod& mod) {
     hooks.CreateHookAbsolute(_PerlinSimplexNoise_getValue, SigScan("48 8B C4 ? ? ? ? ? ? ? ? ? ? 48 81 EC B8 00 00 00 4C 63 11 0F 28 C2 ? ? ? ? 0F 57 F6 ? ? ? ? ? ? ? ? ? ? ? 45 0F 57 ED ? ? ? ? ? ? F3 44"), &PerlinSimplexNoise_getValue);
     hooks.CreateHookAbsolute(_Biome_getTemperatureWorldGen, SigScan("? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 57 48 83 EC 60 48 8B F1 ? ? ? ? ? 48 81 C1 60 01 00 00 41 8D 58 01 48 8B FA E8"), &Biome_getTemperatureWorldGen);
     hooks.CreateHookAbsolute(_PerlinNoise_getRegion, SigScan("48 8B C4 ? ? ? ? ? ? ? ? ? ? ? ? 41 54 41 56 41 57 48 81 EC A0 00 00 00 44 8B B4 24 E0 00 00 00 4D 8B E0 44"), &PerlinNoise_getRegion);
-    hooks.CreateHookAbsolute(_OverworldGeneratorMultinoise__generateDensityCellsForChunk, SigScan("48 8B C4 ? ? ? ? ? ? ? ? ? ? ? ? 41 54 41 56 41 57 48 81 EC A0 00 00 00 44 8B B4 24 E0 00 00 00 4D 8B E0 44"), &OverworldGeneratorMultinoise__generateDensityCellsForChunk);
+    hooks.CreateHookAbsolute(_OverworldGeneratorMultinoise__generateDensityCellsForChunk, SigScan("? ? ? ? ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 10 BF FF FF B8 F0 41 00 00 E8 DE BE 5A 00 48 2B E0 ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 48 8B 05"), &OverworldGeneratorMultinoise__generateDensityCellsForChunk);
 
     srand(time(0));
 }
